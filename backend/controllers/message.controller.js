@@ -1,5 +1,6 @@
 import Conversation from "../models/conversation.model.js";
 import Message from "../models/message.model.js";
+import { io, getReceiverSocketId } from "../socket/socket.js";
 
 export const sendMessage = async (req, res) => {
   try {
@@ -7,35 +8,37 @@ export const sendMessage = async (req, res) => {
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
-    let conversaton = await Conversation.findOne({
+    let conversation = await Conversation.findOne({
       participants: { $all: [senderId, receiverId] },
     });
 
-    if (!conversaton) {
-      conversaton = await Conversation.create({
+    if (!conversation) {
+      conversation = await Conversation.create({
         participants: [senderId, receiverId],
       });
     }
 
     const newMessage = new Message({
-      senderID: senderId,
-      receiverID: receiverId,
+      senderId,
+      receiverId,
       message,
     });
 
     if (newMessage) {
-      conversaton.messages.push(newMessage._id);
+      conversation.messages.push(newMessage._id);
     }
 
-    //await conversaton.save();
-    //await newMessage.save();
+    await Promise.all([conversation.save(), newMessage.save()]);
 
-    await Promise.all([conversaton.save(), newMessage.save()]);
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("newMessage", newMessage);
+    }
 
     res.status(201).json(newMessage);
   } catch (error) {
-    console.log("Error on sending message", error.message);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.log("Error in sendMessage controller: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -48,7 +51,7 @@ export const getMessage = async (req, res) => {
       participants: { $all: [senderId, userTOChatId] },
     }).populate("messages");
 
-    if (!conversation) return res.status(404).json([]);
+    if (!conversation) return res.status(200).json([]);
 
     const messages = conversation.messages;
 

@@ -14,19 +14,19 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
-      minjength: 6,
+      minlength: 6,
     },
     gender: {
       type: String,
       required: true,
       enum: ["male", "female"],
     },
-    ProfilePic: {
+    profilePic: {
       type: String,
       default: "",
     },
+    // createdAt, updatedAt => Member since <createdAt>
   },
-  //Created at and Updated at
   { timestamps: true }
 );
 
